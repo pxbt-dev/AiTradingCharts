@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Crypto Trading Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #0f0f23;
+            color: #e0e0e0;
+        }
+        .dashboard-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .symbols-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .symbol-card {
+            background: #1a1a2e;
+            border-radius: 15px;
+            padding: 15px;
+            border: 1px solid #2d2d4d;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            height: fit-content;
+        }
+        .symbol-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #2d2d4d;
+        }
+        .symbol-name {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .symbol-price {
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .chart-container {
+            height: 250px;
+            margin-bottom: 10px;
+            position: relative;
+        }
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 10px;
+            padding-top: 10px;
+        }
+        .analysis-item {
+            background: #16213e;
+            padding: 10px;
+            border-radius: 8px;
+            border-left: 4px solid;
+            font-size: 13px;
+        }
+        .analysis-item.signal { border-left-color: #ff9800; }
+        .analysis-item.confidence { border-left-color: #2196f3; }
+        .analysis-item.prediction { border-left-color: #4caf50; }
+        .analysis-item.trend { border-left-color: #9c27b0; }
+
+        .signal-buy { color: #4caf50; }
+        .signal-strong_buy { color: #2e7d32; font-weight: bold; }
+        .signal-sell { color: #f44336; }
+        .signal-strong_sell { color: #c62828; font-weight: bold; }
+        .signal-hold { color: #ff9800; }
+        .signal-error { color: #757575; }
+
+        .status-bar {
+            background: #1a1a2e;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status-connected { color: #4caf50; }
+        .status-disconnected { color: #f44336; }
+        .status-connecting { color: #ff9800; }
+
+        .last-update {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        /* Chart controls */
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+            padding: 0 5px;
+        }
+
+        .time-scale-selector {
+            background: #16213e;
+            border: 1px solid #2d2d4d;
+            border-radius: 8px;
+            padding: 6px 12px;
+            color: #e0e0e0;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .time-scale-selector:hover {
+            background: #1a1a2e;
+        }
+
+        .time-scale-selector:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        .chart-title {
+            font-size: 14px;
+            color: #888;
+            font-weight: bold;
+        }
+
+        /* Symbol-specific colors */
+        .btc { color: #f7931a; }
+        .sol { color: #00c58b; }
+        .tao { color: #3b82f6; }
+        .wif { color: #a855f7; }
+
+        /* Ensure chart canvas has room */
+        canvas {
+            display: block;
+            width: 100% !important;
+            height: 200px !important;
+        }
+    </style>
+</head>
+<body>
+<div class="dashboard-header">
+    <h1>🤖 AI Crypto Trading Dashboard</h1>
+    <p>Real-time predictions for top cryptocurrencies</p>
+</div>
+
+<div class="status-bar">
+    <div>
+        <span id="connectionStatus">🔄 Connecting to Binance WebSocket...</span>
+        <div class="last-update">
+            Messages: <span id="messageCount">0</span> |
+            Auto-refresh: <span id="nextRefresh">60m</span> |
+            Last update: <span id="lastUpdateTime">-</span>
+        </div>
+    </div>
+    <div>
+        <button onclick="refreshPredictionsOnly()">🔄 Predictions</button>
+        <button onclick="refreshRealTimeData()">📡 Real-time</button>
+        <button onclick="refreshAllData()">🚀 All Data</button>
+        <button onclick="manualTrigger()">🔔 Test</button>
+    </div>
+</div>
+
+<div class="symbols-grid">
+    <!-- BTC Card -->
+    <div class="symbol-card">
+        <div class="symbol-header">
+            <div class="symbol-name btc">₿ Bitcoin (BTC)</div>
+            <div class="symbol-price btc" id="btcPrice">-</div>
+        </div>
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">Price Chart</div>
+                <select class="time-scale-selector" onchange="changeTimeScale('BTC', this.value)">
+                    <option value="1h">1H</option>
+                    <option value="4h">4H</option>
+                    <option value="1d" selected>1D</option>
+                    <option value="1w">1W</option>
+                    <option value="1m">1M</option>
+                </select>
+            </div>
+            <canvas id="btcChart"></canvas>
+        </div>
+        <div class="analysis-grid">
+            <div class="analysis-item signal">
+                <strong>Signal</strong><br>
+                <span id="btcSignal" class="signal-hold">-</span>
+            </div>
+            <div class="analysis-item confidence">
+                <strong>Confidence</strong><br>
+                <span id="btcConfidence">-</span>
+            </div>
+            <div class="analysis-item prediction">
+                <strong>Prediction</strong><br>
+                <span id="btcPrediction">-</span>
+            </div>
+            <div class="analysis-item trend">
+                <strong>Trend</strong><br>
+                <span id="btcTrend">-</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- SOL Card -->
+    <div class="symbol-card">
+        <div class="symbol-header">
+            <div class="symbol-name sol">◎ Solana (SOL)</div>
+            <div class="symbol-price sol" id="solPrice">-</div>
+        </div>
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">Price Chart</div>
+                <select class="time-scale-selector" onchange="changeTimeScale('SOL', this.value)">
+                    <option value="1h">1H</option>
+                    <option value="4h">4H</option>
+                    <option value="1d" selected>1D</option>
+                    <option value="1w">1W</option>
+                    <option value="1m">1M</option>
+                </select>
+            </div>
+            <canvas id="solChart"></canvas>
+        </div>
+        <div class="analysis-grid">
+            <div class="analysis-item signal">
+                <strong>Signal</strong><br>
+                <span id="solSignal" class="signal-hold">-</span>
+            </div>
+            <div class="analysis-item confidence">
+                <strong>Confidence</strong><br>
+                <span id="solConfidence">-</span>
+            </div>
+            <div class="analysis-item prediction">
+                <strong>Prediction</strong><br>
+                <span id="solPrediction">-</span>
+            </div>
+            <div class="analysis-item trend">
+                <strong>Trend</strong><br>
+                <span id="solTrend">-</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAO Card -->
+    <div class="symbol-card">
+        <div class="symbol-header">
+            <div class="symbol-name tao">τ Bittensor (TAO)</div>
+            <div class="symbol-price tao" id="taoPrice">-</div>
+        </div>
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">Price Chart</div>
+                <select class="time-scale-selector" onchange="changeTimeScale('TAO', this.value)">
+                    <option value="1h">1H</option>
+                    <option value="4h">4H</option>
+                    <option value="1d" selected>1D</option>
+                    <option value="1w">1W</option>
+                    <option value="1m">1M</option>
+                </select>
+            </div>
+            <canvas id="taoChart"></canvas>
+        </div>
+        <div class="analysis-grid">
+            <div class="analysis-item signal">
+                <strong>Signal</strong><br>
+                <span id="taoSignal" class="signal-hold">-</span>
+            </div>
+            <div class="analysis-item confidence">
+                <strong>Confidence</strong><br>
+                <span id="taoConfidence">-</span>
+            </div>
+            <div class="analysis-item prediction">
+                <strong>Prediction</strong><br>
+                <span id="taoPrediction">-</span>
+            </div>
+            <div class="analysis-item trend">
+                <strong>Trend</strong><br>
+                <span id="taoTrend">-</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- WIF Card -->
+    <div class="symbol-card">
+        <div class="symbol-header">
+            <div class="symbol-name wif">🐶 Dogwifhat (WIF)</div>
+            <div class="symbol-price wif" id="wifPrice">-</div>
+        </div>
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">Price Chart</div>
+                <select class="time-scale-selector" onchange="changeTimeScale('WIF', this.value)">
+                    <option value="1h">1H</option>
+                    <option value="4h">4H</option>
+                    <option value="1d" selected>1D</option>
+                    <option value="1w">1W</option>
+                    <option value="1m">1M</option>
+                </select>
+            </div>
+            <canvas id="wifChart"></canvas>
+        </div>
+        <div class="analysis-grid">
+            <div class="analysis-item signal">
+                <strong>Signal</strong><br>
+                <span id="wifSignal" class="signal-hold">-</span>
+            </div>
+            <div class="analysis-item confidence">
+                <strong>Confidence</strong><br>
+                <span id="wifConfidence">-</span>
+            </div>
+            <div class="analysis-item prediction">
+                <strong>Prediction</strong><br>
+                <span id="wifPrediction">-</span>
+            </div>
+            <div class="analysis-item trend">
+                <strong>Trend</strong><br>
+                <span id="wifTrend">-</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Wait for the page to fully load
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 Initializing AI Trading Dashboard...');
+        initializeAllCharts();
+        connectWebSocket();
+        updateDataSourceStatus();
+        updateLastUpdateTime();
+        updateNextRefreshTime();
+    });
+
+    let charts = {};
+    let websocket = null;
+    let messageCount = 0;
+    const symbols = ['BTC', 'SOL', 'TAO', 'WIF'];
+    const symbolColors = {
+        'BTC': '#f7931a',
+        'SOL': '#00c58b',
+        'TAO': '#3b82f6',
+        'WIF': '#a855f7'
+    };
+
+    // Store time scale data for each symbol
+    const timeScaleData = {
+        'BTC': { scale: '1d', data: [] },
+        'SOL': { scale: '1d', data: [] },
+        'TAO': { scale: '1d', data: [] },
+        'WIF': { scale: '1d', data: [] }
+    };
+
+    function initializeAllCharts() {
+        console.log('📊 Initializing charts...');
+
+        symbols.forEach(symbol => {
+            const canvasId = `${symbol.toLowerCase()}Chart`;
+            const canvas = document.getElementById(canvasId);
+
+            if (!canvas) {
+                console.error(`❌ Canvas element not found: ${canvasId}`);
+                return;
+            }
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                console.error(`❌ Could not get 2D context for: ${canvasId}`);
+                return;
+            }
+
+            // Create the chart and store it
+            charts[symbol] = createChart(ctx, symbol);
+            console.log(`✅ Chart initialized for ${symbol}`);
+        });
+
+        console.log('✅ All charts initialized. Total charts:', Object.keys(charts).length);
+    }
+
+    function createChart(ctx, symbol) {
+        return new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Waiting for data...'],
+                datasets: [{
+                    label: `${symbol} Price`,
+                    borderColor: symbolColors[symbol],
+                    backgroundColor: symbolColors[symbol] + '20',
+                    borderWidth: 2,
+                    data: [0],
+                    tension: 0.1,
+                    fill: true,
+                    pointRadius: 0,
+                    pointHoverRadius: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        bottom: 10,
+                        top: 5
+                    }
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        grid: {
+                            color: 'rgba(255,255,255,0.1)',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#888',
+                            maxTicksLimit: 6,
+                            font: {
+                                size: 10
+                            },
+                            padding: 5
+                        }
+                    },
+                    y: {
+                        beginAtZero: false,
+                        grid: {
+                            color: 'rgba(255,255,255,0.1)',
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#888',
+                            callback: function(value) {
+                                return '$' + value.toLocaleString();
+                            },
+                            font: {
+                                size: 10
+                            },
+                            padding: 5
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        padding: 10,
+                        callbacks: {
+                            label: function(context) {
+                                return `${symbol}: $${context.parsed.y.toLocaleString()}`;
+                            }
+                        }
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                }
+            }
+        });
+    }
+
+    function changeTimeScale(symbol, scale) {
+        console.log(`🕒 Changing ${symbol} time scale to: ${scale}`);
+        timeScaleData[symbol].scale = scale;
+
+        // Clear current data
+        timeScaleData[symbol].data = [];
+        if (charts[symbol]) {
+            charts[symbol].data.labels = [];
+            charts[symbol].data.datasets[0].data = [];
+            charts[symbol].update();
+        }
+
+        // Load new historical data for the selected scale
+        loadHistoricalData(symbol, scale);
+    }
+
+    function loadHistoricalData(symbol, scale) {
+        let endpoint = '';
+
+        // Determine timeframe based on scale
+        switch(scale) {
+            case '1h':
+                endpoint = `/api/data/historical/${symbol}?hours=24`;
+                break;
+            case '4h':
+                endpoint = `/api/data/historical/${symbol}?days=7`;
+                break;
+            case '1d':
+                endpoint = `/api/data/historical/${symbol}?days=30`;
+                break;
+            case '1w':
+                endpoint = `/api/data/historical/${symbol}?days=90`;
+                break;
+            case '1m':
+                endpoint = `/api/data/historical/${symbol}?days=365`;
+                break;
+            default:
+                endpoint = `/api/data/historical/${symbol}?days=30`;
+        }
+
+        console.log(`📈 Loading ${scale} data for ${symbol} from: ${endpoint}`);
+
+        fetch(endpoint)
+            .then(response => {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log(`📊 Historical data response for ${symbol}:`, data);
+                if (data && data.length > 0) {
+                    timeScaleData[symbol].data = data;
+                    updateChartWithHistoricalData(symbol, data, scale);
+                } else {
+                    // No historical data - this is expected, we'll build from WebSocket
+                    console.log(`✅ No historical data for ${symbol} - waiting for WebSocket real-time data`);
+                    initializeEmptyChart(symbol);
+                }
+            })
+            .catch(error => {
+                console.error(`❌ Failed to load historical data for ${symbol}:`, error);
+                // No problem - we'll build from WebSocket
+                initializeEmptyChart(symbol);
+            });
+    }
+
+    function initializeEmptyChart(symbol) {
+        const chart = charts[symbol];
+        if (chart) {
+            // Start with empty arrays - chart will build from WebSocket data
+            chart.data.labels = [];
+            chart.data.datasets[0].data = [];
+            chart.update();
+            console.log(`📊 ${symbol} chart ready for real-time WebSocket data`);
+        }
+    }
+
+    function updateChartWithHistoricalData(symbol, data, scale) {
+        const chart = charts[symbol];
+        if (!chart || !data.length) return;
+
+        // Format labels based on time scale
+        const formattedData = formatChartData(data, scale);
+
+        chart.data.labels = formattedData.labels;
+        chart.data.datasets[0].data = formattedData.prices;
+        chart.update();
+
+        console.log(`✅ Updated ${symbol} chart with ${formattedData.prices.length} ${scale} data points`);
+    }
+
+    function formatChartData(data, scale) {
+        const labels = [];
+        const prices = [];
+
+        data.forEach(item => {
+            const date = new Date(item.timestamp);
+
+            // Format label based on time scale
+            let label;
+            switch(scale) {
+                case '1h':
+                    label = date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+                    break;
+                case '4h':
+                    label = date.toLocaleDateString([], {month: 'short', day: 'numeric'}) + ' ' +
+                        date.toLocaleTimeString([], {hour: '2-digit'});
+                    break;
+                case '1d':
+                    label = date.toLocaleDateString([], {month: 'short', day: 'numeric'});
+                    break;
+                case '1w':
+                    label = date.toLocaleDateString([], {month: 'short', day: 'numeric'});
+                    break;
+                case '1m':
+                    label = date.toLocaleDateString([], {month: 'short', year: 'numeric'});
+                    break;
+                default:
+                    label = date.toLocaleDateString();
+            }
+
+            labels.push(label);
+            prices.push(item.price);
+        });
+
+        return { labels, prices };
+    }
+
+    function connectWebSocket() {
+        console.log('🔗 Connecting to WebSocket...');
+
+        if (websocket && websocket.readyState === WebSocket.OPEN) {
+            websocket.close();
+        }
+
+        try {
+            websocket = new WebSocket('ws://localhost:8080/ws');
+
+            websocket.onopen = function(event) {
+                console.log('✅ WebSocket connected successfully!');
+                updateConnectionStatus('connected', '✅ Connected to Binance WebSocket');
+                updateLastUpdateTime();
+            };
+
+            websocket.onmessage = function(event) {
+                messageCount++;
+                document.getElementById('messageCount').textContent = messageCount;
+
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('📨 WebSocket message:', data);
+
+                    if (data.type === 'price_update' && data.symbol) {
+                        updateSymbolDashboard(data);
+                    } else if (data.symbol) {
+                        updateSymbolDashboard(data);
+                    } else if (data.analysis) {
+                        updateSymbolDashboard(data.analysis);
+                    } else {
+                        console.warn('⚠️ Unknown message format:', data);
+                    }
+                } catch (e) {
+                    console.error('❌ Error parsing WebSocket message:', e);
+                }
+            };
+
+            websocket.onclose = function(event) {
+                console.log('❌ WebSocket closed');
+                updateConnectionStatus('disconnected', '❌ Connection lost - Reconnecting...');
+                setTimeout(connectWebSocket, 3000);
+            };
+
+            websocket.onerror = function(error) {
+                console.error('💥 WebSocket error:', error);
+                updateConnectionStatus('disconnected', '❌ Connection error');
+            };
+
+        } catch (error) {
+            console.error('💥 Failed to create WebSocket:', error);
+            updateConnectionStatus('disconnected', '❌ WebSocket creation failed');
+        }
+    }
+
+    function updateSymbolDashboard(data) {
+        const symbol = data.symbol;
+        if (!symbol || !symbols.includes(symbol)) {
+            console.warn('⚠️ Unknown symbol received:', symbol);
+            return;
+        }
+
+        console.log(`🔄 Updating ${symbol} dashboard...`);
+
+        // Update price display
+        if (data.price !== undefined) {
+            const priceElement = document.getElementById(`${symbol.toLowerCase()}Price`);
+            if (priceElement) {
+                priceElement.textContent = formatPrice(data.price, symbol);
+            }
+        }
+
+        // Update AI analysis
+        if (data.analysis) {
+            updateAnalysisDisplay(symbol, data.analysis);
+        }
+
+        // Update chart
+        if (data.price !== undefined) {
+            updateChart(symbol, data.price, data.timestamp);
+        }
+
+        updateLastUpdateTime();
+    }
+
+    function updateAnalysisDisplay(symbol, analysis) {
+        const signal = analysis.tradingSignal || 'HOLD';
+        const confidence = analysis.confidence !== undefined ? (analysis.confidence * 100).toFixed(1) + '%' : '-';
+
+        // Update signal with styling
+        const signalElement = document.getElementById(`${symbol.toLowerCase()}Signal`);
+        if (signalElement) {
+            signalElement.textContent = signal;
+            signalElement.className = 'signal-' + signal.toLowerCase().replace('strong_', '');
+        }
+
+        // Update confidence
+        const confidenceElement = document.getElementById(`${symbol.toLowerCase()}Confidence`);
+        if (confidenceElement) confidenceElement.textContent = confidence;
+
+        // Update prediction
+        if (analysis.predictedPrice !== undefined && analysis.currentPrice !== undefined) {
+            const change = ((analysis.predictedPrice - analysis.currentPrice) / analysis.currentPrice * 100);
+            const changeSymbol = change >= 0 ? '+' : '';
+            const predictionText = `$${analysis.predictedPrice.toFixed(2)} (${changeSymbol}${change.toFixed(2)}%)`;
+            const predictionElement = document.getElementById(`${symbol.toLowerCase()}Prediction`);
+            if (predictionElement) predictionElement.textContent = predictionText;
+        }
+
+        // Update trend
+        if (analysis.predictedPrice !== undefined && analysis.currentPrice !== undefined) {
+            const trend = analysis.predictedPrice > analysis.currentPrice ? 'BULLISH' : 'BEARISH';
+            const trendElement = document.getElementById(`${symbol.toLowerCase()}Trend`);
+            if (trendElement) trendElement.textContent = trend;
+        }
+    }
+
+    function updateChart(symbol, price, timestamp) {
+        // Get the chart for this symbol - make sure it exists
+        const chart = charts[symbol];
+        if (!chart) {
+            console.warn(`⚠️ Chart not found for symbol: ${symbol}`);
+            return;
+        }
+
+        const currentScale = timeScaleData[symbol].scale;
+        const now = new Date(timestamp || Date.now());
+
+        // Format label based on current scale
+        let timeLabel = formatTimeLabel(now, currentScale);
+
+        // If chart is empty or has placeholder data, clear it first
+        if (chart.data.labels.length === 1 && chart.data.labels[0] === 'Waiting for data...') {
+            chart.data.labels = [];
+            chart.data.datasets[0].data = [];
+        }
+
+        // For ALL time scales, add new points in real-time
+        chart.data.labels.push(timeLabel);
+        chart.data.datasets[0].data.push(price);
+
+        // Keep appropriate number of points based on scale
+        let maxPoints;
+        switch(currentScale) {
+            case '1h': maxPoints = 60; break;
+            case '4h': maxPoints = 42; break;
+            case '1d': maxPoints = 30; break;
+            case '1w': maxPoints = 13; break;
+            case '1m': maxPoints = 12; break;
+            default: maxPoints = 50;
+        }
+
+        // Remove oldest points if we exceed the limit
+        if (chart.data.labels.length > maxPoints) {
+            chart.data.labels.shift();
+            chart.data.datasets[0].data.shift();
+        }
+
+        // Safe chart update
+        try {
+            chart.update('none');
+        } catch (error) {
+            console.error(`❌ Error updating chart for ${symbol}:`, error);
+        }
+    }
+
+    function formatTimeLabel(date, scale) {
+        if (!date) date = new Date();
+
+        switch(scale) {
+            case '1h':
+                return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+            case '4h':
+                return date.toLocaleDateString([], {month: 'short', day: 'numeric'}) + ' ' +
+                    date.toLocaleTimeString([], {hour: '2-digit'});
+            case '1d':
+                return date.toLocaleDateString([], {month: 'short', day: 'numeric'});
+            case '1w':
+                return date.toLocaleDateString([], {month: 'short', day: 'numeric'});
+            case '1m':
+                return date.toLocaleDateString([], {month: 'short', year: 'numeric'});
+            default:
+                return date.toLocaleTimeString();
+        }
+    }
+
+    function formatPrice(price, symbol) {
+        if (symbol === 'BTC') return '$' + price.toFixed(2);
+        if (symbol === 'SOL') return '$' + price.toFixed(2);
+        if (symbol === 'TAO') return '$' + price.toFixed(2);
+        if (symbol === 'WIF') return '$' + price.toFixed(4);
+        return '$' + price.toFixed(2);
+    }
+
+    function updateConnectionStatus(status, message) {
+        const statusElement = document.getElementById('connectionStatus');
+        if (statusElement) {
+            statusElement.textContent = message;
+            statusElement.className = `status-${status}`;
+        }
+    }
+
+    function updateLastUpdateTime() {
+        const element = document.getElementById('lastUpdateTime');
+        if (element) {
+            element.textContent = new Date().toLocaleTimeString();
+        }
+    }
+
+    function updateNextRefreshTime() {
+        const element = document.getElementById('nextRefresh');
+        if (element) {
+            element.textContent = '60m';
+        }
+    }
+
+    function updateDataSourceStatus() {
+        // Simple implementation
+        console.log('📡 Data sources: Binance WebSocket');
+    }
+
+    function refreshPredictionsOnly() {
+        console.log('🔄 Refreshing predictions only...');
+        fetch('/api/data/refresh/predictions', { method: 'POST' })
+            .then(response => {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.text();
+            })
+            .then(result => {
+                console.log('✅ Predictions refresh:', result);
+                showNotification('Predictions updated!', 'success');
+                updateLastUpdateTime();
+            })
+            .catch(error => {
+                console.error('❌ Predictions refresh failed:', error);
+                showNotification('Refresh failed - check console', 'error');
+            });
+    }
+
+    function refreshRealTimeData() {
+        console.log('📡 Refreshing real-time data...');
+        fetch('/api/data/refresh/realtime', { method: 'POST' })
+            .then(response => {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.text();
+            })
+            .then(result => {
+                console.log('✅ Real-time refresh:', result);
+                showNotification('Real-time data updated!', 'success');
+                updateLastUpdateTime();
+            })
+            .catch(error => {
+                console.error('❌ Real-time refresh failed:', error);
+                showNotification('Refresh failed - check console', 'error');
+            });
+    }
+
+    function refreshAllData() {
+        console.log('🚀 Refreshing all data...');
+        fetch('/api/data/refresh/all', { method: 'POST' })
+            .then(response => {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.text();
+            })
+            .then(result => {
+                console.log('✅ All data refresh:', result);
+                showNotification('All data refreshed!', 'success');
+                updateLastUpdateTime();
+            })
+            .catch(error => {
+                console.error('❌ All data refresh failed:', error);
+                showNotification('Refresh failed - check console', 'error');
+            });
+    }
+
+    function showNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            z-index: 10000;
+            background: ${type === 'success' ? '#4caf50' : '#f44336'};
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            font-size: 14px;
+        `;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+
+        setTimeout(() => {
+            if (document.body.contains(notification)) {
+                document.body.removeChild(notification);
+            }
+        }, 3000);
+    }
+
+    function manualTrigger() {
+        console.log('🔔 Testing data flow...');
+        symbols.forEach(symbol => {
+            fetch(`/api/test/trigger-update/${symbol}`, { method: 'POST' })
+                .then(response => response.text())
+                .then(result => {
+                    console.log(`✅ ${symbol} test:`, result);
+                })
+                .catch(error => {
+                    console.error(`❌ ${symbol} test failed:`, error);
+                });
+        });
+    }
+
+    // Export to global scope
+    window.manualTrigger = manualTrigger;
+    window.refreshPredictionsOnly = refreshPredictionsOnly;
+    window.refreshRealTimeData = refreshRealTimeData;
+    window.refreshAllData = refreshAllData;
+    window.changeTimeScale = changeTimeScale;
+
+    console.log('🎯 AI Trading Dashboard ready - Waiting for real-time data...');
+</script>
+</body>
+</html>

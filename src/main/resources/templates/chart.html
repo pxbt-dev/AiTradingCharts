@@ -600,7 +600,8 @@
         }
 
         try {
-            websocket = new WebSocket('ws://localhost:8080/ws');
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            websocket = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
 
             websocket.onopen = function(event) {
                 console.log('✅ WebSocket connected successfully!');

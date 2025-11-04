@@ -1,4 +1,4 @@
-# AI Trading Charts - Cryptocurrency Analysis Platform 🤖
+# AI Cryptocurrency Analysis Platform 🤖
 
 A _experimenal_ AI-powered cryptocurrency analysis and predeiction platform that uses real-time market data, technical analysis, and machine learning predictions for 4 cryptocurrencies - BTC, SOL, TAO and WIF. A work in progress.
 

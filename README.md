@@ -14,7 +14,7 @@ A _experimenal_ AI-powered cryptocurrency analysis and predeiction platform that
 # Live
 https://web-production-c17b3.up.railway.app/
 
-N.B. This is a WIP - THe models still need some work as they are returning the same data for some timeframes.
+N.B. This is a WIP - The models still need some work as they are returning the same data for some timeframes.
 
 ✨ Features 
 

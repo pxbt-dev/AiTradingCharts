@@ -1,28 +1,26 @@
 package com.pxbt.dev.aiTradingCharts.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pxbt.dev.aiTradingCharts.handler.CryptoWebSocketHandler;
 import com.pxbt.dev.aiTradingCharts.model.*;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.JsonNode;
-import jakarta.annotation.PostConstruct;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+import org.java_websocket.client.WebSocketClient;
+import org.java_websocket.handshake.ServerHandshake;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.stereotype.Service;
-import org.java_websocket.client.WebSocketClient;
-import org.java_websocket.handshake.ServerHandshake;
-import java.util.Timer;
-import java.util.TimerTask;
+
+import javax.annotation.PostConstruct;
 import java.net.URI;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
+@Slf4j
 @Service
 @EnableScheduling
 public class RealTimeDataService {
-    private static final Logger logger = LoggerFactory.getLogger(RealTimeDataService.class);
 
     private final Map<String, Deque<PriceUpdate>> priceCache = new ConcurrentHashMap<>();
     private final List<WebSocketClient> webSocketClients = new ArrayList<>();
@@ -30,7 +28,6 @@ public class RealTimeDataService {
     // Smart polling control
     private long lastDataBroadcastTime = 0;
     private static final long BROADCAST_INTERVAL = 60 * 60 * 1000; // 1 hour between auto-broadcasts
-    private static final long MANUAL_REFRESH_WINDOW = 2 * 60 * 1000; // 2 minutes for manual refresh
 
     @Autowired
     private CryptoWebSocketHandler webSocketHandler;
@@ -39,7 +36,7 @@ public class RealTimeDataService {
     private PricePredictionService predictionService;
 
     @Autowired
-    private HistoricalDataService historicalDataService;
+    private BinanceHistoricalService binanceHistoricalService;
 
     @Autowired
     private ChartPatternService chartPatternService;
@@ -59,13 +56,13 @@ public class RealTimeDataService {
 
     @PostConstruct
     public void init() {
-        logger.info("🚀 INITIALIZING RealTimeDataService - Real-Time Broadcasting Enabled");
-        logger.info("📊 Real-time updates: EVERY PRICE CHANGE | Manual refresh: 2 minutes");
+        log.info("🚀 INITIALIZING RealTimeDataService - Real-Time Broadcasting Enabled");
+        log.info("📊 Real-time updates: EVERY PRICE CHANGE | Manual refresh: 2 minutes");
         connectToBinanceWebSockets();
     }
 
     private void connectToBinanceWebSockets() {
-        logger.info("🔗 Connecting to Binance WebSockets (real-time mode)...");
+        log.info("🔗 Connecting to Binance WebSockets (real-time mode)...");
 
         for (String symbol : symbols) {
             String streamName = symbolToStream.get(symbol);
@@ -76,13 +73,13 @@ public class RealTimeDataService {
             }
         }
 
-        logger.info("✅ WebSocket connections established (real-time broadcasting)");
+        log.info("✅ WebSocket connections established (real-time broadcasting)");
     }
 
     private void connectToSymbolWebSocket(String symbol, String streamName) {
         try {
             String binanceUrl = "wss://stream.binance.com:9443/ws/" + streamName;
-            logger.debug("🔗 Connecting {} -> {}", symbol, binanceUrl);
+            log.debug("🔗 Connecting {} -> {}", symbol, binanceUrl);
 
             WebSocketClient client = new WebSocketClient(new URI(binanceUrl)) {
                 @Override
@@ -93,19 +90,19 @@ public class RealTimeDataService {
 
                 @Override
                 public void onOpen(ServerHandshake handshake) {
-                    logger.debug("✅ {} WebSocket CONNECTED (real-time)", symbol);
+                    log.debug("✅ {} WebSocket CONNECTED (real-time)", symbol);
                 }
 
                 @Override
                 public void onClose(int code, String reason, boolean remote) {
-                    logger.warn("❌ {} WebSocket CLOSED - Reason: {}", symbol, reason);
+                    log.warn("❌ {} WebSocket CLOSED - Reason: {}", symbol, reason);
                     // Don't auto-reconnect aggressively
                     scheduleGentleReconnection(symbol, streamName);
                 }
 
                 @Override
                 public void onError(Exception ex) {
-                    logger.debug("💥 {} WebSocket ERROR: {}", symbol, ex.getMessage());
+                    log.debug("💥 {} WebSocket ERROR: {}", symbol, ex.getMessage());
                 }
             };
 
@@ -113,16 +110,16 @@ public class RealTimeDataService {
             webSocketClients.add(client);
 
         } catch (Exception e) {
-            logger.error("❌ Failed to connect {} WebSocket: {}", symbol, e.getMessage());
+            log.error("❌ Failed to connect {} WebSocket: {}", symbol, e.getMessage());
         }
     }
 
     private void scheduleGentleReconnection(String symbol, String streamName) {
-        logger.info("🔄 Scheduling {} reconnection in 30 seconds...", symbol);
+        log.info("🔄 Scheduling {} reconnection in 30 seconds...", symbol);
         new Timer().schedule(new TimerTask() {
             @Override
             public void run() {
-                logger.info("🔄 Attempting {} reconnection...", symbol);
+                log.info("🔄 Attempting {} reconnection...", symbol);
                 connectToSymbolWebSocket(symbol, streamName);
             }
         }, 30000); // 30 seconds - be gentle
@@ -140,7 +137,7 @@ public class RealTimeDataService {
 
             // Validate data
             if (price <= 0) {
-                logger.debug("⚠️ Invalid price for {}: {}", symbol, price);
+                log.debug("⚠️ Invalid price for {}: {}", symbol, price);
                 return;
             }
 
@@ -148,9 +145,6 @@ public class RealTimeDataService {
 
             // Always update cache (for manual predictions)
             updatePriceCache(symbol, priceUpdate);
-
-            // BROADCAST EVERY UPDATE for real-time charts
-            logger.info("📢 Broadcasting {} update - Price: ${}", symbol, price);
 
             // Send to AI analysis
             AIAnalysisResult analysis = analyzeWithAI(priceUpdate);
@@ -161,7 +155,7 @@ public class RealTimeDataService {
             lastDataBroadcastTime = System.currentTimeMillis();
 
         } catch (Exception e) {
-            logger.error("❌ Error processing {} update: {}", symbol, e.getMessage());
+            log.error("❌ Error processing {} update: {}", symbol, e.getMessage());
         }
     }
 
@@ -180,7 +174,7 @@ public class RealTimeDataService {
      * MANUAL REFRESH - Force update all symbols
      */
     public void manualRefresh() {
-        logger.info("🎯 MANUAL REFRESH triggered - Broadcasting all symbols");
+        log.info("🎯 MANUAL REFRESH triggered - Broadcasting all symbols");
 
         for (String symbol : symbols) {
             try {
@@ -194,11 +188,11 @@ public class RealTimeDataService {
                     );
                 }
             } catch (Exception e) {
-                logger.error("❌ Manual refresh failed for {}: {}", symbol, e.getMessage());
+                log.error("❌ Manual refresh failed for {}: {}", symbol, e.getMessage());
             }
         }
 
-        logger.info("✅ Manual refresh completed");
+        log.info("✅ Manual refresh completed");
     }
 
     private PriceUpdate getLatestPriceUpdate(String symbol) {
@@ -225,7 +219,7 @@ public class RealTimeDataService {
      * Quick refresh - updates predictions without full data broadcast
      */
     public void quickPredictionsRefresh() {
-        logger.info("🧠 Quick predictions refresh triggered");
+        log.info("🧠 Quick predictions refresh triggered");
 
         for (String symbol : symbols) {
             try {
@@ -235,7 +229,7 @@ public class RealTimeDataService {
                     broadcastUpdate(latestUpdate, analysis);
                 }
             } catch (Exception e) {
-                logger.error("❌ Quick refresh failed for {}: {}", symbol, e.getMessage());
+                log.error("❌ Quick refresh failed for {}: {}", symbol, e.getMessage());
             }
         }
     }
@@ -245,7 +239,7 @@ public class RealTimeDataService {
             double currentPrice = update.getPrice();
 
             // Get historical data for analysis
-            List<CryptoPrice> historicalData = historicalDataService.getHistoricalData(
+            List<CryptoPrice> historicalData = binanceHistoricalService.getHistoricalData(
                     update.getSymbol(), 90 // Need more data for Fibonacci
             );
 
@@ -253,6 +247,9 @@ public class RealTimeDataService {
             List<ChartPattern> patterns = chartPatternService.detectPatterns(
                     update.getSymbol(), historicalData
             );
+
+
+            patterns = ensureValidChartPatterns(patterns, update.getSymbol());
 
             // Calculate Fibonacci Time Zones
             List<FibonacciTimeZone> fibZones = fibonacciTimeZoneService.calculateTimeZones(
@@ -263,7 +260,7 @@ public class RealTimeDataService {
             Map<String, PricePrediction> timeframePredictions =
                     predictionService.predictMultipleTimeframes(update.getSymbol(), currentPrice);
 
-            logger.debug("⏰ Calculated {} Fibonacci Time Zones for {}", fibZones.size(), update.getSymbol());
+            log.debug("⏰ Calculated {} Fibonacci Time Zones for {}", fibZones.size(), update.getSymbol());
 
             return new AIAnalysisResult(
                     update.getSymbol(),
@@ -275,7 +272,7 @@ public class RealTimeDataService {
             );
 
         } catch (Exception e) {
-            logger.error("❌ AI ANALYSIS ERROR for {}: {}", update.getSymbol(), e.getMessage());
+            log.error("❌ AI ANALYSIS ERROR for {}: {}", update.getSymbol(), e.getMessage());
             Map<String, PricePrediction> errorPredictions = new HashMap<>();
             errorPredictions.put("1day", new PricePrediction(update.getSymbol(), update.getPrice(), 0.1, "ERROR"));
 
@@ -290,8 +287,33 @@ public class RealTimeDataService {
         }
     }
 
+    private List<ChartPattern> ensureValidChartPatterns(List<ChartPattern> patterns, String symbol) {
+        if (patterns == null) return new ArrayList<>();
+
+        return patterns.stream()
+                .map(pattern -> {
+                    if (pattern.getPatternType() == null) {
+                        // Create a safe copy with default patternType
+                        return new ChartPattern(
+                                "NEUTRAL", // ✅ Default patternType
+                                pattern.getPriceLevel(),
+                                pattern.getConfidence(),
+                                pattern.getDescription() != null ? pattern.getDescription() : "No pattern detected",
+                                pattern.getTimestamp()
+                        );
+                    }
+                    return pattern;
+                })
+                .toList();
+    }
+
     private void broadcastUpdate(PriceUpdate priceUpdate, AIAnalysisResult analysis) {
         try {
+
+            if (analysis.getChartPatterns() != null) {
+                analysis.setChartPatterns(ensureValidChartPatterns(analysis.getChartPatterns(), priceUpdate.getSymbol()));
+            }
+
             // Create a combined message
             Map<String, Object> broadcastMessage = new HashMap<>();
             broadcastMessage.put("type", "price_update");
@@ -301,41 +323,37 @@ public class RealTimeDataService {
             broadcastMessage.put("timestamp", priceUpdate.getTimestamp());
             broadcastMessage.put("analysis", analysis);
 
+
             String jsonMessage = objectMapper.writeValueAsString(broadcastMessage);
+            objectMapper.readTree(jsonMessage); // This will throw if invalid JSON
 
             // Broadcast to all connected WebSocket clients
             webSocketHandler.broadcast(jsonMessage);
 
-            logger.debug("📢 Broadcasted update for {}", priceUpdate.getSymbol());
+            log.debug("📢 Broadcasted update for {}", priceUpdate.getSymbol());
 
         } catch (Exception e) {
-            logger.error("❌ Error broadcasting update for {}: {}", priceUpdate.getSymbol(), e.getMessage());
+            log.error("❌ Error broadcasting update for {}: {}", priceUpdate.getSymbol(), e.getMessage());
+
+            sendSafeFallbackMessage(priceUpdate);
         }
     }
 
-    public List<PriceUpdate> getRecentPrices(String symbol) {
-        Deque<PriceUpdate> updates = priceCache.get(symbol);
-        if (updates == null) return new ArrayList<>();
-        return new ArrayList<>(updates);
+
+    private void sendSafeFallbackMessage(PriceUpdate priceUpdate) {
+        try {
+            Map<String, Object> safeMessage = new HashMap<>();
+            safeMessage.put("type", "price_update");
+            safeMessage.put("symbol", priceUpdate.getSymbol());
+            safeMessage.put("price", priceUpdate.getPrice());
+            safeMessage.put("volume", priceUpdate.getVolume());
+            safeMessage.put("timestamp", priceUpdate.getTimestamp());
+            safeMessage.put("analysis", Map.of("error", "Analysis temporarily unavailable"));
+
+            webSocketHandler.broadcast(objectMapper.writeValueAsString(safeMessage));
+        } catch (Exception e) {
+            log.error("❌ Even fallback message failed for {}: {}", priceUpdate.getSymbol(), e.getMessage());
+        }
     }
 
-    public boolean isConnected() {
-        return webSocketClients.stream().anyMatch(client -> client.isOpen());
-    }
-
-    public Map<String, Object> getPollingStatus() {
-        long timeSinceLastBroadcast = System.currentTimeMillis() - lastDataBroadcastTime;
-        long nextBroadcastIn = Math.max(0, BROADCAST_INTERVAL - timeSinceLastBroadcast);
-
-        return Map.of(
-                "autoRefreshEnabled", true,
-                "autoRefreshIntervalMinutes", BROADCAST_INTERVAL / (60 * 1000),
-                "lastBroadcastTime", lastDataBroadcastTime,
-                "nextBroadcastInMinutes", nextBroadcastIn / (60 * 1000),
-                "connectedSymbols", webSocketClients.stream()
-                        .filter(client -> client.isOpen())
-                        .count(),
-                "totalSymbols", symbols.size()
-        );
-    }
 }

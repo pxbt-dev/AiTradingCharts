@@ -12,4 +12,8 @@ public class CryptoPrice {
     private double price;
     private double volume;
     private long timestamp;
+    private double open;
+    private double high;
+    private double low;
+    private double close;
 }

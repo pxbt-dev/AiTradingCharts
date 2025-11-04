@@ -2,16 +2,15 @@ package com.pxbt.dev.aiTradingCharts.service;
 
 import com.pxbt.dev.aiTradingCharts.model.CryptoPrice;
 import com.pxbt.dev.aiTradingCharts.model.FibonacciTimeZone;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class FibonacciTimeZoneService {
-    private static final Logger logger = LoggerFactory.getLogger(FibonacciTimeZoneService.class);
 
     // Fibonacci sequence for time zones
     private static final int[] FIBONACCI_SEQUENCE = {1, 2, 3, 5, 8, 13, 21, 34, 55, 89};
@@ -20,7 +19,7 @@ public class FibonacciTimeZoneService {
         List<FibonacciTimeZone> timeZones = new ArrayList<>();
 
         if (prices.size() < 10) {
-            logger.debug("Insufficient data for Fibonacci Time Zones: {} points", prices.size());
+            log.debug("Insufficient data for Fibonacci Time Zones: {} points", prices.size());
             return timeZones;
         }
 
@@ -36,10 +35,10 @@ public class FibonacciTimeZoneService {
             // Sort by importance (more recent = more important)
             timeZones.sort((a, b) -> Long.compare(b.getStartTimestamp(), a.getStartTimestamp()));
 
-            logger.debug("⏰ Calculated {} Fibonacci Time Zones for {}", timeZones.size(), symbol);
+            log.debug("⏰ Calculated {} Fibonacci Time Zones for {}", timeZones.size(), symbol);
 
         } catch (Exception e) {
-            logger.error("❌ Fibonacci Time Zone calculation failed for {}: {}", symbol, e.getMessage());
+            log.error("❌ Fibonacci Time Zone calculation failed for {}: {}", symbol, e.getMessage());
         }
 
         return timeZones;
@@ -160,7 +159,7 @@ public class FibonacciTimeZoneService {
         }
 
         return lows.stream()
-                .sorted((a, b) -> Double.compare(a.getPrice(), b.getPrice()))
+                .sorted(Comparator.comparingDouble(CryptoPrice::getPrice))
                 .limit(3) // Top 3 significant lows
                 .collect(Collectors.toList());
     }

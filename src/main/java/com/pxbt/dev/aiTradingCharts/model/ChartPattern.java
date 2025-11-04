@@ -15,7 +15,13 @@ public class ChartPattern {
     private String description;
     private long timestamp;
 
-    public ChartPattern(String doubleBottom, double price, double v, String bullishReversalPattern, long currentTimestamp) {
+    public ChartPattern(String patternType, double priceLevel, double confidence, String description, long timestamp) {
+        this.patternType = patternType;
+        this.priceLevel = priceLevel;
+        this.confidence = confidence;
+        this.description = description;
+        this.timestamp = timestamp;
+        this.symbol = ""; // Default empty symbol
     }
 
     // Custom methods
@@ -24,15 +30,21 @@ public class ChartPattern {
     }
 
     public String getTrendDirection() {
-        switch (patternType) {
+        if (patternType == null) {
+            return "NEUTRAL";
+        }
+
+        switch (patternType.toUpperCase()) {
             case "UPTREND":
             case "BULLISH_ENGULFING":
             case "DOUBLE_BOTTOM":
+            case "BULLISH":
                 return "BULLISH";
             case "DOWNTREND":
             case "BEARISH_ENGULFING":
             case "DOUBLE_TOP":
             case "HEAD_SHOULDERS":
+            case "BEARISH":
                 return "BEARISH";
             default:
                 return "NEUTRAL";

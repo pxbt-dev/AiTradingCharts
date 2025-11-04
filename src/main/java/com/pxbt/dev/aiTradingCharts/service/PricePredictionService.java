@@ -2,326 +2,141 @@ package com.pxbt.dev.aiTradingCharts.service;
 
 import com.pxbt.dev.aiTradingCharts.model.CryptoPrice;
 import com.pxbt.dev.aiTradingCharts.model.PricePrediction;
-import org.springframework.stereotype.Service;
-import java.util.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import weka.gui.simplecli.Java;
 
+import javax.swing.*;
+import java.util.*;
+
+@Slf4j
 @Service
 public class PricePredictionService {
-    private static final Logger logger = LoggerFactory.getLogger(PricePredictionService.class);
 
     @Autowired
-    private HistoricalDataService historicalDataService;
+    private BinanceHistoricalService historicalDataService;
 
-    private static final int LOOKBACK_PERIOD = 50;
-
-    /**
-     * Original single prediction method (for backward compatibility)
-     */
-    public PricePrediction predictNextPrice(String symbol, List<CryptoPrice> recentPrices) {
-        if (recentPrices == null || recentPrices.size() < LOOKBACK_PERIOD) {
-            return createDefaultPrediction(symbol, recentPrices);
-        }
-
-        // Prepare features for AI
-        double[] features = extractFeatures(recentPrices);
-
-        // Multiple prediction models
-        double lstmPrediction = lstmPredict(features);
-        double arimaPrediction = arimaPredict(features);
-        double ensemblePrediction = ensemblePredict(lstmPrediction, arimaPrediction);
-
-        // Calculate confidence
-        double confidence = calculatePredictionConfidence(features, recentPrices);
-
-        // Determine trend
-        String trend = determineTrend(ensemblePrediction, getCurrentPrice(recentPrices));
-
-        return new PricePrediction(
-                symbol,
-                ensemblePrediction,
-                confidence,
-                trend
-        );
-    }
+    @Autowired
+    private AIModelService aiModelService;
 
     /**
-     * NEW: Predict multiple timeframes (1 day, 3 days, 5 days, 7 days, 30 days)
+     * AI-based prediction for multiple timeframes
      */
     public Map<String, PricePrediction> predictMultipleTimeframes(String symbol, double currentPrice) {
         Map<String, PricePrediction> predictions = new LinkedHashMap<>();
 
         try {
-            // Get historical data for different analyses
-            List<CryptoPrice> shortTermData = historicalDataService.getHistoricalData(symbol, 30); // 30 days
-            List<CryptoPrice> mediumTermData = historicalDataService.getHistoricalData(symbol, 90); // 90 days
-            List<CryptoPrice> longTermData = historicalDataService.getFullHistoricalData(symbol);
+            // Get historical data for feature extraction
+            List<CryptoPrice> historicalData = historicalDataService.getFullHistoricalData(symbol);
+
+            if (historicalData.size() < 100) {
+                log.warn("Insufficient data for AI prediction: {} points", historicalData.size());
+                return createConservativePredictions(symbol, currentPrice);
+            }
+
+            // Extract latest features for prediction
+            List<CryptoPrice> recentData = historicalData.subList(
+                    historicalData.size() - 50, historicalData.size());
 
             // Generate predictions for different timeframes
-            predictions.put("1day", predictForTimeframe(symbol, currentPrice, shortTermData, 1, "SHORT_TERM"));
-            predictions.put("3days", predictForTimeframe(symbol, currentPrice, mediumTermData, 3, "SHORT_TERM"));
-            predictions.put("5days", predictForTimeframe(symbol, currentPrice, mediumTermData, 5, "MEDIUM_TERM"));
-            predictions.put("7days", predictForTimeframe(symbol, currentPrice, mediumTermData, 7, "MEDIUM_TERM"));
-            predictions.put("30days", predictForTimeframe(symbol, currentPrice, longTermData, 30, "LONG_TERM"));
-
-            logger.debug("📊 Generated {} timeframe predictions for {}", predictions.size(), symbol);
+            String[] timeframes = {"1h", "4h", "1d", "1w"};
+            for (String timeframe : timeframes) {
+                PricePrediction prediction = generateAIPrediction(symbol, currentPrice, recentData, timeframe);
+                predictions.put(timeframe, prediction);
+            }
 
         } catch (Exception e) {
-            logger.error("❌ Multi-timeframe prediction failed for {}: {}", symbol, e.getMessage());
-            // Return default predictions on error
-            predictions.put("1day", createDefaultPrediction(symbol, currentPrice, 1));
-            predictions.put("3days", createDefaultPrediction(symbol, currentPrice, 3));
-            predictions.put("5days", createDefaultPrediction(symbol, currentPrice, 5));
-            predictions.put("7days", createDefaultPrediction(symbol, currentPrice, 7));
-            predictions.put("30days", createDefaultPrediction(symbol, currentPrice, 30));
+            log.error("❌ AI prediction failed for {}: {}", symbol, e.getMessage(), e);
+            return createConservativePredictions(symbol, currentPrice);
         }
 
         return predictions;
     }
 
-    /**
-     * Predict for a specific timeframe
-     */
-    private PricePrediction predictForTimeframe(String symbol, double currentPrice,
-                                                List<CryptoPrice> historicalData,
-                                                int days, String timeframeType) {
-        if (historicalData.isEmpty()) {
-            return createDefaultPrediction(symbol, currentPrice, days);
-        }
-
+    private PricePrediction generateAIPrediction(String symbol, double currentPrice,
+                                                 List<CryptoPrice> recentData, String timeframe) {
         try {
-            double[] features = extractAdvancedFeatures(historicalData, timeframeType);
-            double predictedPrice = calculateTimeframePrediction(currentPrice, features, days, timeframeType);
-            double confidence = calculateTimeframeConfidence(features, historicalData, days);
-            String trend = determineTrend(predictedPrice, currentPrice);
+            // Extract features for prediction
+            double[] features = extractAdvancedFeatures(recentData, timeframe);
 
+            // Get AI prediction with confidence
+            Map<String, Object> aiResult = aiModelService.predictWithConfidence(features, timeframe);
+            double predictedChange = (double) aiResult.get("prediction");
+            double confidence = (double) aiResult.get("confidence");
+            String modelType = (String) aiResult.get("model");
+
+            double predictedPrice = currentPrice * (1 + predictedChange);
+            String trend = determineTrend(predictedChange);
+
+            // Calculate price targets based on confidence
             Map<String, Double> priceTargets = calculatePriceTargets(predictedPrice, confidence);
             Map<String, String> timeHorizons = Map.of(
-                    "timeframe", days + " days",
-                    "type", timeframeType
+                    "timeframe", getTimeframeDisplay(timeframe),
+                    "type", getTimeframeType(timeframe),
+                    "ai_model", modelType
             );
 
-            return new PricePrediction(
-                    symbol,
-                    predictedPrice,
-                    confidence,
-                    trend,
-                    priceTargets,
-                    timeHorizons
+            // Create enhanced prediction with AI metadata
+            PricePrediction prediction = new PricePrediction(
+                    symbol, predictedPrice, confidence, trend, priceTargets, timeHorizons
             );
+
+            log.debug("🎯 AI Prediction - {} {}: {:.2f}% change (confidence: {:.1f}%, model: {})",
+                    symbol, timeframe, predictedChange * 100, confidence * 100, modelType);
+
+            return prediction;
 
         } catch (Exception e) {
-            logger.error("❌ Error in {} prediction for {}: {}", days + "day", symbol, e.getMessage());
-            return createDefaultPrediction(symbol, currentPrice, days);
+            log.error("❌ AI prediction failed for {} {}: {}", symbol, timeframe, e.getMessage());
+            return createFallbackPrediction(symbol, currentPrice, timeframe);
         }
     }
 
+    /**
+     * Enhanced feature extraction for AI predictions
+     */
     private double[] extractAdvancedFeatures(List<CryptoPrice> data, String timeframeType) {
         double[] prices = data.stream().mapToDouble(CryptoPrice::getPrice).toArray();
+        double[] volumes = data.stream().mapToDouble(CryptoPrice::getVolume).toArray();
 
-        if (timeframeType.equals("SHORT_TERM")) {
+        if (timeframeType.equals("1h") || timeframeType.equals("4h")) {
+            // SHORT-TERM features
             return new double[] {
                     calculateSMA(prices, 5), calculateSMA(prices, 20),
-                    calculateRSI(prices, 14), calculateMACD(prices),
-                    calculateVolatility(prices, 10), calculateMomentum(prices, 5),
-                    calculateVolumeTrend(data), calculatePriceAcceleration(prices)
+                    calculateEMA(prices, 12), calculateRSI(prices, 14),
+                    calculateMACD(prices), calculateVolatility(prices, 10),
+                    calculateMomentum(prices, 5), calculateVolumeTrend(volumes),
+                    calculatePriceAcceleration(prices), calculateZScore(prices),
+                    calculateBollingerPosition(prices), calculateVolumePriceTrend(volumes, prices),
+                    calculateSupportResistance(prices), calculateTrendStrength(prices),
+                    calculatePriceRateOfChange(prices, 5)
             };
-        } else if (timeframeType.equals("MEDIUM_TERM")) {
+        } else if (timeframeType.equals("1d")) {
+            // MEDIUM-TERM features
             return new double[] {
                     calculateSMA(prices, 20), calculateSMA(prices, 50),
-                    calculateRSI(prices, 21), calculateVolatility(prices, 20),
-                    calculateTrendStrength(prices), calculateSupportResistance(prices),
-                    calculateSeasonality(data), calculateMarketCycle(data)
+                    calculateEMA(prices, 26), calculateRSI(prices, 21),
+                    calculateVolatility(prices, 20), calculateTrendStrength(prices),
+                    calculateSupportResistance(prices), calculateSeasonality(data),
+                    calculateMarketCycle(data), calculateVolumeStrength(volumes),
+                    calculatePriceRateOfChange(prices, 10), calculateMomentum(prices, 15),
+                    calculateZScore(prices), calculateBollingerPosition(prices),
+                    calculateVolumePriceTrend(volumes, prices)
             };
-        } else { // LONG_TERM
+        } else {
+            // LONG-TERM features (1w)
             return new double[] {
                     calculateSMA(prices, 50), calculateSMA(prices, 200),
-                    calculateVolatility(prices, 60), calculateLongTermTrend(prices),
-                    calculateMarketMaturity(data), calculateAdoptionMetrics(data)
+                    calculateVolatility(prices, 50), calculateLongTermTrend(prices),
+                    calculateMarketMaturity(data), calculateSupportResistance(prices),
+                    calculateTrendStrength(prices), calculateSeasonality(data),
+                    calculateMarketCycle(data), calculateVolumeStrength(volumes),
+                    calculatePriceRateOfChange(prices, 20), calculateZScore(prices),
+                    calculateBollingerPosition(prices), calculateVolumePriceTrend(volumes, prices),
+                    calculateAdoptionMetrics(data)
             };
         }
-    }
-
-    private double calculateTimeframePrediction(double currentPrice, double[] features,
-                                                int days, String timeframeType) {
-        double basePrediction = currentPrice;
-
-        // Different models for different timeframes
-        switch (timeframeType) {
-            case "SHORT_TERM":
-                // Technical analysis + momentum based
-                double momentum = features[5]; // momentum feature
-                double volatility = features[4];
-                basePrediction += (momentum * currentPrice * 0.01 * days);
-                break;
-
-            case "MEDIUM_TERM":
-                // Trend + cycle based
-                double trendStrength = features[4];
-                double seasonality = features[6];
-                basePrediction += (trendStrength * currentPrice * 0.005 * days);
-                basePrediction += (seasonality * currentPrice * 0.002 * days);
-                break;
-
-            case "LONG_TERM":
-                // Fundamental + macro based
-                double longTermTrend = features[3];
-                double marketMaturity = features[4];
-                basePrediction += (longTermTrend * currentPrice * 0.001 * days);
-                basePrediction *= (1 + marketMaturity * 0.1);
-                break;
-        }
-
-        return Math.max(0.01, basePrediction); // Ensure positive price
-    }
-
-    private double calculateTimeframeConfidence(double[] features, List<CryptoPrice> data, int days) {
-        double baseConfidence = 0.5;
-
-        // Confidence decreases with longer timeframes
-        double timeframeFactor = 1.0 / Math.log(days + 1);
-
-        // More data points = higher confidence
-        double dataFactor = Math.min(1.0, data.size() / (days * 2.0));
-
-        // Lower volatility = higher confidence
-        double volatility = features[4];
-        double volatilityFactor = Math.max(0, 1 - (volatility * 5));
-
-        double confidence = baseConfidence * timeframeFactor * dataFactor * volatilityFactor;
-        return Math.max(0.1, Math.min(0.9, confidence));
-    }
-
-    // ===== ORIGINAL PREDICTION METHODS =====
-
-    private PricePrediction createDefaultPrediction(String symbol, List<CryptoPrice> recentPrices) {
-        double currentPrice = getCurrentPrice(recentPrices);
-        return new PricePrediction(
-                symbol,
-                currentPrice, // No change prediction
-                0.1, // Low confidence
-                "NEUTRAL"
-        );
-    }
-
-    private PricePrediction createDefaultPrediction(String symbol, double currentPrice, int days) {
-        return new PricePrediction(
-                symbol,
-                currentPrice,
-                0.1, // Low confidence
-                "NEUTRAL"
-        );
-    }
-
-    private double getCurrentPrice(List<CryptoPrice> prices) {
-        if (prices == null || prices.isEmpty()) {
-            return 45000.0; // Default BTC price
-        }
-        return prices.get(prices.size() - 1).getPrice();
-    }
-
-    private double[] extractFeatures(List<CryptoPrice> prices) {
-        double[] priceArray = prices.stream()
-                .mapToDouble(CryptoPrice::getPrice)
-                .toArray();
-
-        return new double[] {
-                // Technical Indicators
-                calculateSMA(priceArray, 5),
-                calculateSMA(priceArray, 20),
-                calculateEMA(priceArray, 12),
-                calculateEMA(priceArray, 26),
-                calculateRSI(priceArray, 14),
-                calculateMACD(priceArray),
-                calculateVolatility(priceArray, 20),
-
-                // Price Action
-                calculateMomentum(priceArray, 10),
-                calculatePriceRateOfChange(priceArray, 10),
-
-                // Volume Analysis (simplified)
-                calculateVolumeStrength(prices),
-
-                // Statistical Features
-                calculateZScore(priceArray)
-        };
-    }
-
-    private double lstmPredict(double[] features) {
-        // Simplified LSTM-like prediction
-        double prediction = 0;
-        double[] weights = generateDynamicWeights(features);
-
-        for (int i = 0; i < features.length; i++) {
-            prediction += features[i] * weights[i];
-        }
-
-        double lastPrice = features[0];
-        double trendComponent = calculateTrendStrength(features) * lastPrice * 0.01;
-
-        return lastPrice + prediction + trendComponent;
-    }
-
-    private double arimaPredict(double[] features) {
-        double[] prices = extractPriceSeries(features);
-
-        if (prices.length < 10) return prices[prices.length - 1];
-
-        // Simple AR model
-        double alpha = 0.1;
-        double beta1 = 0.4;
-        double beta2 = 0.3;
-        double beta3 = 0.2;
-
-        int n = prices.length;
-        return alpha +
-                beta1 * prices[n-1] +
-                beta2 * prices[n-2] +
-                beta3 * prices[n-3];
-    }
-
-    private double ensemblePredict(double lstmPred, double arimaPred) {
-        double lstmWeight = 0.6;
-        double arimaWeight = 0.4;
-        return (lstmPred * lstmWeight) + (arimaPred * arimaWeight);
-    }
-
-    private double calculatePredictionConfidence(double[] features, List<CryptoPrice> prices) {
-        double volatility = calculateVolatility(extractPriceSeries(features), 10);
-        double trendStrength = calculateTrendStrength(features);
-        double rsi = features[4];
-
-        double baseConfidence = 0.5;
-        double volAdjustment = Math.max(0, 1 - (volatility * 10));
-        double trendAdjustment = trendStrength;
-        double rsiAdjustment = 1 - Math.abs(rsi - 50) / 50;
-
-        double rawConfidence = baseConfidence +
-                (volAdjustment * 0.2) +
-                (trendAdjustment * 0.15) +
-                (rsiAdjustment * 0.1);
-
-        return Math.max(0.1, Math.min(0.95, rawConfidence));
-    }
-
-    private String determineTrend(double predictedPrice, double currentPrice) {
-        double change = ((predictedPrice - currentPrice) / currentPrice) * 100;
-
-        if (change > 2.0) return "STRONG_BULLISH";
-        if (change > 0.5) return "BULLISH";
-        if (change > -0.5) return "NEUTRAL";
-        if (change > -2.0) return "BEARISH";
-        return "STRONG_BEARISH";
-    }
-
-    private Map<String, Double> calculatePriceTargets(double predictedPrice, double confidence) {
-        Map<String, Double> targets = new HashMap<>();
-        targets.put("conservative", predictedPrice * 0.7 + (predictedPrice * 0.3 * confidence));
-        targets.put("expected", predictedPrice);
-        targets.put("optimistic", predictedPrice * 1.3 * confidence);
-        return targets;
     }
 
     // ===== TECHNICAL INDICATORS =====
@@ -345,16 +160,27 @@ public class PricePredictionService {
     }
 
     private double calculateRSI(double[] prices, int period) {
-        double gains = 0, losses = 0;
-        for (int i = 1; i <= period; i++) {
-            double change = prices[prices.length - i] - prices[prices.length - i - 1];
-            if (change > 0) gains += change;
-            else losses -= change;
+        if (prices.length < period + 1) return 50.0;
+
+        double gains = 0.0;
+        double losses = 0.0;
+
+        for (int i = prices.length - period; i < prices.length - 1; i++) {
+            double change = prices[i + 1] - prices[i];
+            if (change > 0) {
+                gains += change;
+            } else {
+                losses -= change;
+            }
         }
+
         double avgGain = gains / period;
         double avgLoss = losses / period;
-        double rs = avgLoss == 0 ? 100 : avgGain / avgLoss;
-        return 100 - (100 / (1 + rs));
+
+        if (avgLoss == 0) return 100.0;
+
+        double rs = avgGain / avgLoss;
+        return 100.0 - (100.0 / (1 + rs));
     }
 
     private double calculateMACD(double[] prices) {
@@ -364,56 +190,93 @@ public class PricePredictionService {
     }
 
     private double calculateVolatility(double[] prices, int period) {
+        if (prices.length < period) return 0.0;
+
         double mean = calculateSMA(prices, period);
-        double sum = 0;
+        double sum = 0.0;
         int start = Math.max(0, prices.length - period);
+        int count = prices.length - start;
+
         for (int i = start; i < prices.length; i++) {
             sum += Math.pow(prices[i] - mean, 2);
         }
-        return Math.sqrt(sum / Math.min(period, prices.length - start));
+
+        return Math.sqrt(sum / count);
     }
 
     private double calculateMomentum(double[] prices, int period) {
-        if (prices.length < period) return 0;
+        if (prices.length < period) return 0.0;
         return prices[prices.length-1] - prices[prices.length-period];
     }
 
     private double calculatePriceRateOfChange(double[] prices, int period) {
-        if (prices.length < period) return 0;
+        if (prices.length < period) return 0.0;
         return ((prices[prices.length-1] - prices[prices.length-period]) / prices[prices.length-period]) * 100;
     }
 
-    private double calculateVolumeStrength(List<CryptoPrice> prices) {
-        if (prices.size() < 2) return 0.5;
-        double currentVolume = prices.get(prices.size()-1).getVolume();
-        double avgVolume = prices.stream()
-                .mapToDouble(CryptoPrice::getVolume)
-                .average()
-                .orElse(1.0);
+    private double calculateVolumeTrend(double[] volumes) {
+        if (volumes.length < 5) return 0.5;
+        double currentVolume = volumes[volumes.length-1];
+        double avgVolume = 0.0;
+        for (int i = 0; i < volumes.length - 1; i++) {
+            avgVolume += volumes[i];
+        }
+        avgVolume /= (volumes.length - 1);
         return currentVolume / avgVolume;
     }
 
-    private double calculateZScore(double[] prices) {
-        if (prices.length < 2) return 0;
-        double mean = calculateSMA(prices, prices.length);
-        double stdDev = calculateVolatility(prices, prices.length);
-        return stdDev == 0 ? 0 : (prices[prices.length-1] - mean) / stdDev;
+    private double calculatePriceAcceleration(double[] prices) {
+        if (prices.length < 3) return 0;
+        double change1 = (prices[prices.length-1] - prices[prices.length-2]) / prices[prices.length-2];
+        double change2 = (prices[prices.length-2] - prices[prices.length-3]) / prices[prices.length-3];
+        return change1 - change2;
     }
 
-    // ===== ADVANCED FEATURE METHODS =====
+    private double calculateZScore(double[] prices) {
+        if (prices.length < 2) return 0.0;
+        double mean = calculateSMA(prices, prices.length);
+        double stdDev = calculateVolatility(prices, prices.length);
+        return stdDev == 0 ? 0.0 : (prices[prices.length-1] - mean) / stdDev;
+    }
 
-    private double calculateTrendStrength(double[] prices) {
-        if (prices.length < 10) return 0;
-        double sma20 = calculateSMA(prices, Math.min(20, prices.length));
-        double sma50 = calculateSMA(prices, Math.min(50, prices.length));
-        return (sma20 - sma50) / sma50;
+    private double calculateBollingerPosition(double[] prices) {
+        if (prices.length < 20) return 0.5;
+        double sma20 = calculateSMA(prices, 20);
+        double stdDev = calculateVolatility(prices, 20);
+        double upperBand = sma20 + (2 * stdDev);
+        double lowerBand = sma20 - (2 * stdDev);
+        double currentPrice = prices[prices.length - 1];
+
+        return (currentPrice - lowerBand) / (upperBand - lowerBand);
+    }
+
+    private double calculateVolumePriceTrend(double[] volumes, double[] prices) {
+        if (prices.length < 2) return 0;
+
+        double volumeSum = 0;
+        double priceChangeSum = 0;
+
+        for (int i = 1; i < prices.length; i++) {
+            double priceChange = (prices[i] - prices[i-1]) / prices[i-1];
+            volumeSum += volumes[i];
+            priceChangeSum += priceChange * volumes[i];
+        }
+
+        return volumeSum == 0 ? 0 : priceChangeSum / volumeSum;
     }
 
     private double calculateSupportResistance(double[] prices) {
-        if (prices.length < 10) return 0;
+        if (prices.length < 10) return 0.0;
         double current = prices[prices.length - 1];
         double avg = calculateSMA(prices, prices.length);
         return (current - avg) / avg;
+    }
+
+    private double calculateTrendStrength(double[] prices) {
+        if (prices.length < 20) return 0.0;
+        double sma20 = calculateSMA(prices, Math.min(20, prices.length));
+        double sma50 = calculateSMA(prices, Math.min(50, prices.length));
+        return (sma20 - sma50) / sma50;
     }
 
     private double calculateSeasonality(List<CryptoPrice> data) {
@@ -460,40 +323,78 @@ public class PricePredictionService {
         return data.size() > 180 ? 0.05 : 0.02;
     }
 
-    private double calculatePriceAcceleration(double[] prices) {
-        if (prices.length < 3) return 0;
-        double change1 = (prices[prices.length-1] - prices[prices.length-2]) / prices[prices.length-2];
-        double change2 = (prices[prices.length-2] - prices[prices.length-3]) / prices[prices.length-3];
-        return change1 - change2;
-    }
-
-    private double calculateVolumeTrend(List<CryptoPrice> data) {
-        if (data.size() < 5) return 0.5;
-        double currentVolume = data.get(data.size()-1).getVolume();
-        double avgVolume = data.stream()
-                .limit(data.size()-1)
-                .mapToDouble(CryptoPrice::getVolume)
-                .average()
-                .orElse(1.0);
+    private double calculateVolumeStrength(double[] volumes) {
+        if (volumes.length < 2) return 0.5;
+        double currentVolume = volumes[volumes.length-1];
+        double avgVolume = 0.0;
+        for (int i = 0; i < volumes.length - 1; i++) {
+            avgVolume += volumes[i];
+        }
+        avgVolume /= (volumes.length - 1);
         return currentVolume / avgVolume;
     }
 
-    // ===== UTILITY METHODS =====
+      // ===== HELPER METHODS =====
 
-    private double[] generateDynamicWeights(double[] features) {
-        double[] weights = new double[features.length];
-        double volatility = calculateVolatility(extractPriceSeries(features), 10);
+    private String determineTrend(double predictedChange) {
+        double changePercent = predictedChange * 100;
 
-        for (int i = 0; i < weights.length; i++) {
-            weights[i] = (Math.random() * 0.2 - 0.1) * (1 - volatility);
-        }
-        return weights;
+        if (changePercent > 5.0) return "STRONG_BULLISH";
+        if (changePercent > 1.5) return "BULLISH";
+        if (changePercent > -1.5) return "NEUTRAL";
+        if (changePercent > -5.0) return "BEARISH";
+        return "STRONG_BEARISH";
     }
 
-    private double[] extractPriceSeries(double[] features) {
-        // Extract price-like values from features (simplified)
-        double[] prices = new double[10];
-        Arrays.fill(prices, features[0]);
-        return prices;
+    private Map<String, Double> calculatePriceTargets(double predictedPrice, double confidence) {
+        Map<String, Double> targets = new HashMap<>();
+        double conservativeFactor = 0.7 + (0.3 * confidence);
+        double optimisticFactor = 1.3 * confidence;
+
+        targets.put("conservative", predictedPrice * conservativeFactor);
+        targets.put("expected", predictedPrice);
+        targets.put("optimistic", predictedPrice * optimisticFactor);
+        return targets;
+    }
+
+    private String getTimeframeDisplay(String timeframe) {
+        return switch(timeframe) {
+            case "1h" -> "1 hour";
+            case "4h" -> "4 hours";
+            case "1d" -> "1 day";
+            case "1w" -> "1 week";
+            default -> timeframe;
+        };
+    }
+
+    private String getTimeframeType(String timeframe) {
+        return switch(timeframe) {
+            case "1h", "4h" -> "SHORT_TERM";
+            case "1d" -> "MEDIUM_TERM";
+            case "1w" -> "LONG_TERM";
+            default -> "UNKNOWN";
+        };
+    }
+
+    private PricePrediction createFallbackPrediction(String symbol, double currentPrice, String timeframe) {
+        return new PricePrediction(
+                symbol,
+                currentPrice,
+                0.1, // Low confidence
+                "NEUTRAL"
+        );
+    }
+
+    private Map<String, PricePrediction> createConservativePredictions(String symbol, double currentPrice) {
+        Map<String, PricePrediction> predictions = new HashMap<>();
+        Random random = new Random();
+        double smallRandomChange = (random.nextDouble() * 0.02) - 0.01; // -1% to +1%
+
+        predictions.put("1h", new PricePrediction(symbol, currentPrice * (1 + smallRandomChange), 0.3, "NEUTRAL"));
+        predictions.put("4h", new PricePrediction(symbol, currentPrice * (1 + smallRandomChange * 1.5), 0.4, "NEUTRAL"));
+        predictions.put("1d", new PricePrediction(symbol, currentPrice * (1 + smallRandomChange * 2), 0.5, "NEUTRAL"));
+        predictions.put("1w", new PricePrediction(symbol, currentPrice * (1 + smallRandomChange * 3), 0.4, "NEUTRAL"));
+
+        return predictions;
     }
 }

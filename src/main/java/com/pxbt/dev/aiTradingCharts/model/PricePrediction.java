@@ -16,7 +16,6 @@ public class PricePrediction {
     private Map<String, String> timeHorizons = new HashMap<>();
     private long timestamp;
 
-    // ✅ FIXED: Proper constructors that actually set the fields
     public PricePrediction(String symbol, double predictedPrice, double confidence, String trend) {
         this.symbol = symbol;
         this.predictedPrice = predictedPrice;

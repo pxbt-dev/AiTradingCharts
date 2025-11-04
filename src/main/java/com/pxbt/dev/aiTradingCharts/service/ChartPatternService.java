@@ -2,22 +2,20 @@ package com.pxbt.dev.aiTradingCharts.service;
 
 import com.pxbt.dev.aiTradingCharts.model.ChartPattern;
 import com.pxbt.dev.aiTradingCharts.model.CryptoPrice;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class ChartPatternService {
-    private static final Logger logger = LoggerFactory.getLogger(ChartPatternService.class);
 
     public List<ChartPattern> detectPatterns(String symbol, List<CryptoPrice> prices) {
         List<ChartPattern> patterns = new ArrayList<>();
 
         if (prices.size() < 20) {
-            logger.debug("Insufficient data for pattern detection: {} points", prices.size());
+            log.debug("Insufficient data for pattern detection: {} points", prices.size());
             return patterns;
         }
 
@@ -36,10 +34,10 @@ public class ChartPatternService {
             // Sort by confidence (highest first)
             patterns.sort((a, b) -> Double.compare(b.getConfidence(), a.getConfidence()));
 
-            logger.debug("🧩 Detected {} patterns for {}", patterns.size(), symbol);
+            log.debug("🧩 Detected {} patterns for {}", patterns.size(), symbol);
 
         } catch (Exception e) {
-            logger.error("❌ Pattern detection failed for {}: {}", symbol, e.getMessage());
+            log.error("❌ Pattern detection failed for {}: {}", symbol, e.getMessage());
         }
 
         return patterns;

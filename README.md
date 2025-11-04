@@ -20,7 +20,7 @@ N.B. This is a WIP - The models still need some work as they are returning the s
 
 📊 Real-time Market Data: Live cryptocurrency prices from Binance WebSocket feeds
 
-🎯 Technical Analysis: Automated pattern recognition (support/resistance, chart patterns, Fibonacci)
+🎯 Technical Analysis: Pattern recognition (support/resistance, chart patterns, Fibonacci)
 
 📈 Interactive Charts: Candlestick charts with timeframe selection
 

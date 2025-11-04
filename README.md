@@ -8,8 +8,7 @@ A _experimenal_ AI-powered cryptocurrency analysis and predeiction platform that
 ![CSS3](https://img.shields.io/badge/CSS3-1572B6?logo=css3&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black)
 ![Railway](https://img.shields.io/badge/Deploy-Railway-0B0D0E?logo=railway&logoColor=white)
-![Cloudflare](https://img.shields.io/badge/CDN%2FSSL-Cloudflare-F38020?logo=cloudflare&logoColor=white)
-![WEKA](https://img.shields.io/badge/WEKA-Machine-Learning-007EC6?logo=weka&logoColor=white)
+![Weka](https://img.shields.io/badge/Weka-Machine%20Learning-007EC6?logo=weka&logoColor=white)
 
 
 ✨ Features 

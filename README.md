@@ -2,7 +2,7 @@
 
 A _experimenal_ AI-powered cryptocurrency analysis and predeiction platform that uses real-time market data, technical analysis, and machine learning predictions for 4 cryptocurrencies - BTC, SOL, TAO and WIF. A work in progress.
 
-![Java](https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white)
+![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.7-6DB33F?logo=springboot&logoColor=white)
 ![HTML5](https://img.shields.io/badge/HTML5-E34F26?logo=html5&logoColor=white)
 ![CSS3](https://img.shields.io/badge/CSS3-1572B6?logo=css3&logoColor=white)

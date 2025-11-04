@@ -21,17 +21,11 @@ public class AiTradingChartsApplication {
 			@Override
 			public void run() {
 				Runtime runtime = Runtime.getRuntime();
-				long used = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
-				long max = runtime.maxMemory() / (1024 * 1024);
-				long free = runtime.freeMemory() / (1024 * 1024);
-				int usagePercent = (int) ((used * 100) / max);
+				long usedMemory = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
+				long maxMemory = runtime.maxMemory() / (1024 * 1024);
+				long freeMemory = runtime.freeMemory() / (1024 * 1024);
 
-				System.out.println("🧠 MEMORY: " + used + "MB / " + max + "MB (" + usagePercent + "%) - Free: " + free + "MB");
-
-				// Warning if usage is high
-				if (usagePercent > 80) {
-					System.out.println("⚠️  WARNING: High memory usage!");
-				}
+				System.out.println("🧠 MEMORY USAGE: " + usedMemory + "MB used / " + maxMemory + "MB max / " + freeMemory + "MB free");
 			}
 		}, 10000, 30000); // Start after 10 seconds, repeat every 30 seconds
 	}

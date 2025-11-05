@@ -219,13 +219,7 @@ public class TradingAnalysisService {
 
         Map<String, PricePrediction> predictions = new HashMap<>();
 
-        // Use MUCH larger data windows to ensure we have enough data
-        PricePrediction shortTerm1H = calculate1HPrediction(symbol, currentPrice,
-                filterRecentData(historicalData, 24)); // Last 24 hours - enough for 1H analysis
-
-        PricePrediction shortTerm4H = calculate4HPrediction(symbol, currentPrice,
-                filterRecentData(historicalData, 96)); // Last 4 days - enough for 4H analysis
-
+        // Focus on timeframes that actually work well
         PricePrediction mediumTerm1D = calculate1DPrediction(symbol, currentPrice,
                 filterRecentData(historicalData, 168)); // Last 7 days - enough for 1D analysis
 
@@ -235,16 +229,12 @@ public class TradingAnalysisService {
         PricePrediction longTerm1M = calculate1MPrediction(symbol, currentPrice,
                 historicalData); // Use ALL historical data for monthly
 
-        predictions.put("1hour", shortTerm1H);
-        predictions.put("4hour", shortTerm4H);
         predictions.put("1day", mediumTerm1D);
         predictions.put("1week", longTerm1W);
         predictions.put("1month", longTerm1M);
 
-        log.debug("🤖 Generated predictions for {}: 1H=${}, 4H=${}, 1D=${}, 1W=${}, 1M=${}",
+        log.debug("🤖 Generated predictions for {}: 1D=${}, 1W=${}, 1M=${}",
                 symbol,
-                shortTerm1H.getPredictedPrice(),
-                shortTerm4H.getPredictedPrice(),
                 mediumTerm1D.getPredictedPrice(),
                 longTerm1W.getPredictedPrice(),
                 longTerm1M.getPredictedPrice());

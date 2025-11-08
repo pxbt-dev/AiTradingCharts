@@ -10,6 +10,18 @@ A _experimenal_ AI-powered cryptocurrency analysis and predeiction platform that
 ![Railway](https://img.shields.io/badge/Deploy-Railway-0B0D0E?logo=railway&logoColor=white)
 ![Weka](https://img.shields.io/badge/Weka-Machine%20Learning-007EC6?logo=weka&logoColor=white)
 
+📊 Live- https://web-production-5aef.up.railway.app/
+
+✨ Features 
+
+🔍 Multi-timeframe Analysis: Simultaneous analysis using ML across 1H, 4H, 1D, and 1W timeframes
+
+📊 Real-time Market Data: Live cryptocurrency prices from Binance WebSocket feeds
+
+📈 Interactive Charts: Candlestick charts with timeframe selection
+
+⚡ Real-time Updates: WebSocket-based live data streaming and analysis
+
 
 ###  ML Pipeline:
 Raw Price Data >  15 Technical Indicators > Feature Vector [SMA5, EMA12, RSI14, MACD, ...] > Weka ML Model Training (3 algorithms) > Real-time Price Predictions with Confidence Scores
@@ -29,16 +41,7 @@ Raw Price Data >  15 Technical Indicators > Feature Vector [SMA5, EMA12, RSI14, 
 ### Prediction Timeframes:
 - 1 hour, 4 hours, 1 day, 1 week
 
-📊 Live- https://web-production-5aef.up.railway.app/
 
-✨ Features 
 
-🔍 Multi-timeframe Analysis: Simultaneous analysis using ML across 1H, 4H, 1D, and 1W timeframes
-
-📊 Real-time Market Data: Live cryptocurrency prices from Binance WebSocket feeds
-
-📈 Interactive Charts: Candlestick charts with timeframe selection
-
-⚡ Real-time Updates: WebSocket-based live data streaming and analysis
 
 

@@ -10,7 +10,32 @@ A _experimenal_ AI-powered cryptocurrency analysis and predeiction platform that
 ![Railway](https://img.shields.io/badge/Deploy-Railway-0B0D0E?logo=railway&logoColor=white)
 ![Weka](https://img.shields.io/badge/Weka-Machine%20Learning-007EC6?logo=weka&logoColor=white)
 
-N.B. Tons of stuff in codebase but not yet implemented. Trend, Signal and Confidence are using hardcoded values currently - next step is to intengrate WEKA analysis to these as well as the existing WEKA price prediction - after which, they will be added to the frontend again.
+
+###  ML Pipeline:
+Raw Price Data
+    ↓
+15 Technical Indicators ← (All the methods you listed)
+    ↓
+Feature Vector [SMA5, EMA12, RSI14, MACD, ...]
+    ↓
+Weka ML Model Training (3 algorithms)
+    ↓  
+Real-time Price Predictions with Confidence Scores
+
+### ML uses these features to predict price:
+- **Trend Analysis**: SMA(5,20,50,200), EMA(12,26)
+- **Momentum**: RSI(14), MACD, Price Acceleration  
+- **Volatility**: Standard Deviation, Z-Score, Bollinger Bands
+- **Volume**: Volume-Price Trend, Volume Strength
+- **Market Structure**: Support/Resistance, Market Cycles
+
+### Models Trained:
+- Linear Regression
+- Support Vector Machine (SMOreg) 
+- Random Forest
+
+### Prediction Timeframes:
+- 1 hour, 4 hours, 1 day, 1 week
 
 📊 Live- https://web-production-5aef.up.railway.app/
 

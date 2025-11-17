@@ -17,9 +17,9 @@ An _experimental_ AI-powered cryptocurrency analysis and prediction platform tha
 ### Features 
 🔍 Multi-timeframe Analysis: Simultaneous analysis using ML across 1D, 1W and 1M timeframes
 
-📊 Real-time Market Data: Integrated live cryptocurrency pricing via Binance WebSocket feeds, with development started to enrich the dataset with Binance historical data from Feb 2023 onwards.
+📊 Real-time Market Data: Integrated live cryptocurrency pricing via Binance WebSocket feeds
 
-📈 Interactive Charts: Candlestick charts with timeframe selection
+📈 Interactive Charts: Candlestick charts plotted using Open High Low Close (OHLC) data with timeframe selection
 
 ⚡ Real-time Updates: WebSocket-based live data streaming and analysis
 
@@ -41,7 +41,6 @@ Raw Price Data >  15 Technical Indicators > Feature Vector [SMA5, EMA12, RSI14, 
 ### Prediction Timeframes:
 - 1 day, 1 week, 1 month
 
-
-
-
-
+### Improvements:
+-  Development in progress to enrich the dataset with Binance historical data from Feb 2023 onwards to enhance dataset depth and model accuracy.
+-  Migrating the current Charts.js implementation to TradingView's more powerful advanced charting library 

@@ -1,6 +1,6 @@
 # AI Cryptocurrency Analysis Platform 🤖
 
-A _experimenal_ AI-powered cryptocurrency analysis and predeiction platform that uses real-time market data and WEKA machine learning for price predictions for 4 cryptocurrencies - BTC, SOL, TAO and WIF. A work in progress that was born out of curiousity.
+An _experimental_ AI-powered cryptocurrency analysis and prediction platform that uses real-time market data and WEKA machine learning. The system incorporates trend, momentum, volatility, volume, and market structure analysis to generate price predictions for four cryptocurrencies: BTC, SOL, TAO, and WIF. An evolving work in progress that was born out of curiosity.
 
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.7-6DB33F?logo=springboot&logoColor=white)

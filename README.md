@@ -13,7 +13,7 @@ A _experimenal_ AI-powered cryptocurrency analysis and predeiction platform that
 📊 Live- https://aicryptopredictor.com/
 
 ### Features 
-🔍 Multi-timeframe Analysis: Simultaneous analysis using ML across 1H, 4H, 1D, and 1W timeframes
+🔍 Multi-timeframe Analysis: Simultaneous analysis using ML across 1D, 1W and 1M timeframes
 
 📊 Real-time Market Data: Live cryptocurrency prices from Binance WebSocket feeds
 
@@ -37,7 +37,7 @@ Raw Price Data >  15 Technical Indicators > Feature Vector [SMA5, EMA12, RSI14, 
 - **Single Model Prediction**: Uses only the best model for actual price predictions
 
 ### Prediction Timeframes:
-- 1 hour, 4 hours, 1 day, 1 week
+- 1 day, 1 week, 1 month
 
 
 

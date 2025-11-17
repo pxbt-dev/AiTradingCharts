@@ -42,5 +42,5 @@ Raw Price Data >  15 Technical Indicators > Feature Vector [SMA5, EMA12, RSI14, 
 - 1 day, 1 week, 1 month
 
 ### Improvements:
--  Development in progress to enrich the dataset with Binance historical data from Feb 2023 onwards to enhance dataset depth and model accuracy.
+-  Development in progress to enrich the dataset with Binance historical data from Feb 2023 onwards to enhance depth and model accuracy.
 -  Migrating the current Charts.js implementation to TradingView's more powerful advanced charting library 

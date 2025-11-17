@@ -21,8 +21,6 @@ An _experimental_ AI-powered cryptocurrency analysis and prediction platform tha
 
 📈 Interactive Charts: Candlestick charts plotted using Open High Low Close (OHLC) data with timeframe selection
 
-⚡ Real-time Updates: WebSocket-based live data streaming and analysis
-
 ###  ML Pipeline:
 Raw Price Data >  15 Technical Indicators > Feature Vector [SMA5, EMA12, RSI14, MACD, ...] > Weka ML Model Training (3 algorithms) > Real-time Price Predictions with Confidence Scores
 

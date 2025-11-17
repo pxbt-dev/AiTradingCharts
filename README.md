@@ -17,7 +17,7 @@ An _experimental_ AI-powered cryptocurrency analysis and prediction platform tha
 ### Features 
 🔍 Multi-timeframe Analysis: Simultaneous analysis using ML across 1D, 1W and 1M timeframes
 
-📊 Real-time Market Data: Live cryptocurrency prices from Binance WebSocket feeds
+📊 Real-time Market Data: Integrated live cryptocurrency pricing via Binance WebSocket feeds, with development started to enrich the dataset with Binance historical data from Feb 2023 onwards.
 
 📈 Interactive Charts: Candlestick charts with timeframe selection
 
